@@ -1,9 +1,20 @@
 <template>
-  <q-page class="flex flex-center">
-    <img
-      alt="Quasar logo"
-      src="~assets/quasar-logo-vertical.svg"
-      style="width: 200px; height: 200px"
-    >
-  </q-page>
+  <div class="container">
+    <ShipmentOrderInsights />
+    <OrderDetails />
+  </div>
 </template>
+
+<script>
+import OrderDetails from 'src/components/OrderDetails.vue'
+import ShipmentOrderInsights from 'src/components/ShipmentOrderInsights.vue'
+
+export default {
+  components: {
+    OrderDetails,
+    ShipmentOrderInsights,
+  },
+}
+</script>
+
+<style></style>
