@@ -24,9 +24,28 @@
           <template #append><q-icon name="person" size="16px" /></template>
         </q-input>
 
-        <q-input v-model="form.address" label="Shipping Address" outlined dense>
+        <q-input
+          v-model="form.address"
+          label="Shipping Address"
+          outlined
+          dense
+          :loading="validating"
+          :color="isValidAddress ? 'positive' : 'primary'"
+          @blur="validateAddress"
+          @update:model-value="isValidAddress = false"
+        >
           <template #append>
-            <q-icon name="check_circle" size="16px" color="positive" />
+            <q-icon v-if="isValidAddress" name="check_circle" color="positive" size="16px" />
+
+            <q-spinner v-else-if="validating" size="16px" color="primary" />
+
+            <q-icon
+              v-else
+              name="search"
+              size="16px"
+              class="cursor-pointer"
+              @click="validateAddress"
+            />
           </template>
         </q-input>
 
@@ -87,7 +106,7 @@
     <div class="block">
       <div class="row justify-between items-center q-mb-md">
         <div class="block-title">VALIDATED LOGISTICS ADDRESS</div>
-        <div class="verified">VERIFIED</div>
+        <div class="verified" v-if="isValidAddress">VERIFIED</div>
       </div>
 
       <div class="grid-3">
@@ -100,7 +119,14 @@
       </div>
 
       <!-- Map placeholder -->
-      <div class="map-box"></div>
+      <GoogleMap
+        v-if="isValidAddress"
+        :center="getMapCenter()"
+        :zoom="15"
+        style="width: 100%; height: 220px"
+      >
+        <Marker :options="{ position: getMapCenter() }" />
+      </GoogleMap>
     </div>
 
     <!-- HELP BUTTON -->
@@ -113,6 +139,12 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import axios from 'axios'
+import { GoogleMap, Marker } from 'vue3-google-map'
+
+// -------------------- STATE --------------------
+const validating = ref(false)
+const isValidAddress = ref(false)
 
 const form = ref({
   customer: 'Alfreds Futterkiste',
@@ -133,10 +165,59 @@ const logistics = ref({
   state: 'Berlin (BE)',
   postal: '12209',
   country: 'Germany',
-  gps: '52.5200° N, 13.4050° E',
+  gps: '52.5200, 13.4050',
 })
 
+// -------------------- COMPUTED --------------------
 const total = computed(() => items.value.reduce((s, i) => s + i.qty * i.price, 0).toFixed(2))
+
+// -------------------- METHODS --------------------
+const validateAddress = async () => {
+  if (!form.value.address) return
+
+  validating.value = true
+
+  try {
+    const res = await axios.post('http://localhost:5000/api/address/validate', {
+      address: form.value.address,
+    })
+
+    const data = res.data
+
+    // Replace with standardized address
+    form.value.address = data.formattedAddress
+
+    // Fill logistics
+    fillLogistics(data)
+
+    isValidAddress.value = true
+  } catch (error) {
+    console.error('Validation failed', error)
+    isValidAddress.value = false
+  } finally {
+    validating.value = false
+  }
+}
+
+const fillLogistics = (data) => {
+  const parts = data.formattedAddress.split(',')
+
+  logistics.value.street = parts[0]?.trim() || ''
+  logistics.value.city = parts[1]?.trim() || ''
+  logistics.value.state = parts[2]?.trim() || ''
+  logistics.value.country = parts[parts.length - 1]?.trim() || ''
+
+  logistics.value.postal = '' // optional improvement later
+  logistics.value.gps = `${data.latitude}, ${data.longitude}`
+}
+
+const getMapCenter = () => {
+  if (!logistics.value.gps) return { lat: 0, lng: 0 }
+
+  const [lat, lng] = logistics.value.gps.split(',').map(Number)
+
+  return { lat, lng }
+}
 </script>
 
 <style scoped>
