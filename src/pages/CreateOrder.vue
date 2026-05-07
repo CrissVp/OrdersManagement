@@ -2,93 +2,150 @@
   <q-page class="page-wrap">
     <!-- HEADER -->
     <div class="header">
-      <div class="header-left">
-        <div class="order-icon"></div>
-        <div class="order-title">Order #10248</div>
+      <div class="block-container row items-center no-wrap">
+        <div class="header-left">
+          <div class="order-icon"></div>
+          <div class="order-title">NEW ORDER</div>
+        </div>
+
+        <div class="header-actions row items-center no-wrap">
+          <span>|</span>
+          <q-btn flat size="sm" class="btn-outline" label="Save" @click="saveOrder" />
+          <q-btn flat size="sm" label="Cancel" class="btn-danger btn-outline" />
+        </div>
       </div>
 
-      <div class="header-actions">
-        <q-btn label="New" flat dense class="btn-muted" />
-        <q-btn label="Save" flat dense class="btn-muted" />
-        <q-btn label="Delete" flat dense class="btn-danger" />
-        <q-btn label="GENERATE INVOICE" unelevated class="btn-dark" />
-      </div>
+      <q-btn label="GENERATE INVOICE" class="btn-dark" />
     </div>
 
     <!-- ORDER INFO -->
-    <div class="block">
-      <div class="block-title">ORDER INFORMATION</div>
+    <div class="block-container">
+      <div class="block-container-title">ORDER INFORMATION</div>
 
       <div class="grid">
-        <q-input v-model="form.customer" label="Customer" outlined dense>
-          <template #append><q-icon name="person" size="16px" /></template>
-        </q-input>
+        <!-- CUSTOMER -->
+        <q-select
+          v-model="form.customer"
+          :options="customers"
+          label="Customer"
+          outlined
+          dense
+          emit-value
+          map-options
+        />
 
+        <!-- ADDRESS -->
         <q-input
           v-model="form.address"
           label="Shipping Address"
           outlined
           dense
-          :loading="validating"
-          :color="isValidAddress ? 'positive' : 'primary'"
           @blur="validateAddress"
-          @update:model-value="isValidAddress = false"
         >
           <template #append>
-            <q-icon v-if="isValidAddress" name="check_circle" color="positive" size="16px" />
-
-            <q-spinner v-else-if="validating" size="16px" color="primary" />
-
-            <q-icon
-              v-else
-              name="search"
-              size="16px"
-              class="cursor-pointer"
-              @click="validateAddress"
-            />
+            <q-icon v-if="addressStatus === true" name="check_circle" color="green" />
+            <q-icon v-else-if="addressStatus === false" name="cancel" color="red" />
           </template>
         </q-input>
 
-        <q-input v-model="form.date" label="Order Date" outlined dense>
-          <template #append><q-icon name="event" size="16px" /></template>
+        <!-- DATE -->
+        <q-input v-model="form.date" label="Order Date" outlined dense readonly>
+          <template #append>
+            <q-icon name="event" class="cursor-pointer">
+              <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                <q-date v-model="form.date" mask="YYYY-MM-DD">
+                  <div class="row items-center justify-end q-gutter-sm q-pa-sm">
+                    <q-btn label="OK" color="primary" flat v-close-popup />
+                  </div>
+                </q-date>
+              </q-popup-proxy>
+            </q-icon>
+          </template>
         </q-input>
 
-        <q-input v-model="form.manager" label="Account Manager" outlined dense>
-          <template #append><q-icon name="badge" size="16px" /></template>
-        </q-input>
+        <!-- MANAGER -->
+        <q-select
+          v-model="form.manager"
+          :options="managers"
+          label="Account Manager"
+          outlined
+          dense
+          emit-value
+          map-options
+        />
+      </div>
+      <div class="grid-4 q-mt-sm">
+        <!-- SHIPPER -->
+        <q-select
+          v-model="form.shipper"
+          :options="shippers"
+          label="Shipper"
+          outlined
+          dense
+          emit-value
+          map-options
+          @update:model-value="onShipperChange"
+        />
+
+        <!-- SHIPPER DETAILS -->
+        <q-input v-model="shipperDetails.id" label="Shipper ID" outlined dense disable />
+        <q-input v-model="shipperDetails.name" label="Company Name" outlined dense disable />
+        <q-input v-model="shipperDetails.phone" label="Phone" outlined dense disable />
       </div>
     </div>
 
     <!-- LINE ITEMS -->
-    <div class="block">
-      <div class="row justify-between items-center q-mb-sm">
-        <div class="block-title">Line Items <span class="item-count">3 ITEMS</span></div>
-
-        <div class="row q-gutter-sm">
-          <q-btn label="ADD LINE" dense outline class="btn-outline" />
-          <q-btn label="DELETE SELECTED" dense class="btn-dark" />
-        </div>
+    <div class="row justify-between items-center q-mt-lg q-mb-md">
+      <div class="row items-center">
+        <span class="item-line-title">Line Items</span>
+        <span class="item-count">{{ items.length }} ITEMS</span>
       </div>
 
+      <div class="row q-gutter-sm">
+        <q-btn size="sm" flat label="ADD LINE" class="btn-outline" @click="addLine" />
+        <q-btn size="sm" label="DELETE SELECTED" flat class="btn-dark" @click="deleteSelected" />
+      </div>
+    </div>
+
+    <div class="block-container">
       <table class="custom-table">
         <thead>
           <tr>
-            <th class="left">PRODUCT DESCRIPTION</th>
-            <th>QUANTITY</th>
+            <th style="width: 40px">
+              <input type="checkbox" v-model="selectAll" @change="toggleAll" />
+            </th>
+            <th>PRODUCT</th>
+            <th>DESCRIPTION</th>
+            <th>QTY</th>
             <th class="right">UNIT PRICE</th>
-            <th class="right">EXT. TOTAL</th>
+            <th class="right">TOTAL</th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-for="item in items" :key="item.name">
+          <tr v-for="(item, index) in items" :key="index">
+            <td class="center">
+              <input type="checkbox" v-model="selected" :value="index" />
+            </td>
+
             <td>
-              <div class="item-title">{{ item.name }}</div>
+              <q-select
+                v-model="item.productId"
+                :options="products"
+                dense
+                outlined
+                emit-value
+                map-options
+                @update:model-value="(val) => updateProduct(index, val)"
+              />
+            </td>
+
+            <td>
               <div class="item-sub">{{ item.desc }}</div>
             </td>
 
             <td class="center">
-              <input class="qty-input" type="number" v-model="item.qty" />
+              <input class="qty-input" type="number" v-model.number="item.qty" />
             </td>
 
             <td class="right">${{ item.price.toFixed(2) }}</td>
@@ -103,300 +160,63 @@
     </div>
 
     <!-- LOGISTICS -->
-    <div class="block">
+    <div class="block-container q-mt-lg">
       <div class="row justify-between items-center q-mb-md">
-        <div class="block-title">VALIDATED LOGISTICS ADDRESS</div>
-        <div class="verified" v-if="isValidAddress">VERIFIED</div>
+        <div class="block-container-title">VALIDATED LOGISTICS ADDRESS</div>
+
+        <div
+          class="verified"
+          :class="{
+            'verified-ok': addressStatus === true,
+            'verified-bad': addressStatus === false,
+          }"
+        >
+          {{
+            addressStatus === true ? 'VERIFIED' : addressStatus === false ? 'UNVERIFIED' : 'PENDING'
+          }}
+        </div>
       </div>
 
       <div class="grid-3">
         <q-input v-model="logistics.street" label="Street" outlined dense />
         <q-input v-model="logistics.city" label="City" outlined dense />
-        <q-input v-model="logistics.state" label="State / Prov." outlined dense />
+        <q-input v-model="logistics.state" label="State/Prov." outlined dense />
         <q-input v-model="logistics.postal" label="Postal Code" outlined dense />
         <q-input v-model="logistics.country" label="Country" outlined dense />
         <q-input v-model="logistics.gps" label="GPS Coordinates" outlined dense />
       </div>
 
-      <!-- Map placeholder -->
-      <GoogleMap
-        v-if="isValidAddress"
-        :center="getMapCenter()"
-        :zoom="15"
-        style="width: 100%; height: 220px"
-      >
-        <Marker :options="{ position: getMapCenter() }" />
-      </GoogleMap>
-    </div>
-
-    <!-- HELP BUTTON -->
-    <div class="help">
-      <q-icon name="support_agent" size="18px" />
-      <span>Help Desk</span>
+      <div class="map-box">
+        <MapDisplay :result="logistics" />
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import axios from 'axios'
-import { GoogleMap, Marker } from 'vue3-google-map'
+import useCreateOrder from '../js/createOrder.js'
+import '../css/createOrder.css'
+import MapDisplay from '../components/MapDisplay.vue'
 
-// -------------------- STATE --------------------
-const validating = ref(false)
-const isValidAddress = ref(false)
-
-const form = ref({
-  customer: 'Alfreds Futterkiste',
-  address: 'Obere Str. 57, 12209 Berlin, Germany',
-  date: '10/27/2023',
-  manager: 'Andrew Fuller',
-})
-
-const items = ref([
-  { name: 'Chai', desc: 'Beverages | 10 boxes x 20 bags', qty: 12, price: 18 },
-  { name: 'Chang', desc: 'Beverages | 24 - 12 oz bottles', qty: 10, price: 19 },
-  { name: 'Aniseed Syrup', desc: 'Condiments | 12 - 550 ml bottles', qty: 5, price: 10 },
-])
-
-const logistics = ref({
-  street: 'Obere Str. 57',
-  city: 'Berlin',
-  state: 'Berlin (BE)',
-  postal: '12209',
-  country: 'Germany',
-  gps: '52.5200, 13.4050',
-})
-
-// -------------------- COMPUTED --------------------
-const total = computed(() => items.value.reduce((s, i) => s + i.qty * i.price, 0).toFixed(2))
-
-// -------------------- METHODS --------------------
-const validateAddress = async () => {
-  if (!form.value.address) return
-
-  validating.value = true
-
-  try {
-    const res = await axios.post('http://localhost:5000/api/address/validate', {
-      address: form.value.address,
-    })
-
-    const data = res.data
-
-    // Replace with standardized address
-    form.value.address = data.formattedAddress
-
-    // Fill logistics
-    fillLogistics(data)
-
-    isValidAddress.value = true
-  } catch (error) {
-    console.error('Validation failed', error)
-    isValidAddress.value = false
-  } finally {
-    validating.value = false
-  }
-}
-
-const fillLogistics = (data) => {
-  const parts = data.formattedAddress.split(',')
-
-  logistics.value.street = parts[0]?.trim() || ''
-  logistics.value.city = parts[1]?.trim() || ''
-  logistics.value.state = parts[2]?.trim() || ''
-  logistics.value.country = parts[parts.length - 1]?.trim() || ''
-
-  logistics.value.postal = '' // optional improvement later
-  logistics.value.gps = `${data.latitude}, ${data.longitude}`
-}
-
-const getMapCenter = () => {
-  if (!logistics.value.gps) return { lat: 0, lng: 0 }
-
-  const [lat, lng] = logistics.value.gps.split(',').map(Number)
-
-  return { lat, lng }
-}
+const {
+  customers,
+  managers,
+  products,
+  shippers,
+  addressStatus,
+  form,
+  shipperDetails,
+  onShipperChange,
+  validateAddress,
+  saveOrder,
+  items,
+  addLine,
+  updateProduct,
+  selected,
+  selectAll,
+  toggleAll,
+  deleteSelected,
+  total,
+  logistics,
+} = useCreateOrder()
 </script>
-
-<style scoped>
-.page-wrap {
-  background: #f6f8fb;
-  padding: 20px 28px;
-  font-family: Inter, sans-serif;
-}
-
-/* HEADER */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.order-icon {
-  width: 28px;
-  height: 28px;
-  background: #1e3a5f;
-  border-radius: 6px;
-}
-
-.order-title {
-  font-weight: 600;
-  font-size: 18px;
-  color: #2b2f33;
-}
-
-.header-actions .q-btn {
-  font-size: 12px;
-}
-
-/* BUTTONS */
-.btn-muted {
-  color: #6b7280;
-}
-
-.btn-danger {
-  color: #d64545;
-}
-
-.btn-dark {
-  background: #1f2937;
-  color: white;
-  font-size: 12px;
-  padding: 6px 14px;
-}
-
-.btn-outline {
-  border: 1px solid #d1d5db;
-  font-size: 12px;
-}
-
-/* BLOCK */
-.block {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.block-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 12px;
-}
-
-/* GRID */
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-/* TABLE */
-.custom-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.custom-table th {
-  text-align: left;
-  font-size: 11px;
-  color: #9ca3af;
-  font-weight: 600;
-  padding-bottom: 8px;
-}
-
-.custom-table td {
-  padding: 10px 0;
-  border-top: 1px solid #f1f1f1;
-}
-
-.item-title {
-  font-weight: 600;
-}
-
-.item-sub {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.qty-input {
-  width: 50px;
-  padding: 4px;
-  text-align: center;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-}
-
-.right {
-  text-align: right;
-}
-
-.center {
-  text-align: center;
-}
-
-.total-cell {
-  font-weight: 600;
-}
-
-.total-row {
-  text-align: right;
-  margin-top: 10px;
-  font-weight: 600;
-}
-
-.total-row span {
-  margin-left: 10px;
-}
-
-/* VERIFIED */
-.verified {
-  background: #e6f7ee;
-  color: #22a06b;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 10px;
-}
-
-/* MAP */
-.map-box {
-  height: 220px;
-  background: #e5e7eb;
-  border-radius: 6px;
-  margin-top: 14px;
-}
-
-/* HELP BUTTON */
-.help {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  background: #2563eb;
-  color: white;
-  padding: 10px 14px;
-  border-radius: 24px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-}
-</style>

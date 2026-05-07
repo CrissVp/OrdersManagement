@@ -1,41 +1,12 @@
-<script>
-import { api } from 'src/boot/axios'
+<script setup>
+import { ref } from 'vue'
+import useOrderDetails from '../js/orderDetails.js'
+import '../css/orderDetails.css'
 
-export default {
-  name: 'OrdersStyledTable',
-  data() {
-    return {
-      columns: [
-        { name: 'customer', label: 'CUSTOMER', field: 'customerName', align: 'left' },
-        { name: 'orderDate', label: 'ORDER DATE', field: 'orderDate', align: 'left' },
-        { name: 'products', label: 'PRODUCTS', field: 'products', align: 'left' },
-        { name: 'region', label: 'REGION', field: 'region', align: 'left' },
-        { name: 'status', label: 'STATUS', field: 'status', align: 'left' },
-        { name: 'total', label: 'TOTALS', field: 'totalAmount', align: 'right' },
-        { name: 'action', label: '', field: 'action', align: 'right' },
-      ],
-      rows: [],
-    }
-  },
-  async mounted() {
-    const res = await api.get('/order-detail-views')
-    console.log({ res, length: res.data.length })
-    this.rows = res.data
-  },
-  methods: {
-    getInitials(name) {
-      return name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase()
-    },
-    onPaginationChange(props) {
-      this.pagination = props.pagination
-    },
-  },
-}
+const { columns, filteredRows, regions, selectedRegion, setRegion, clearRegion, getInitials } =
+  useOrderDetails()
+
+const showRegionsMenu = ref(false)
 </script>
 
 <template>
@@ -51,8 +22,35 @@ export default {
       </div>
 
       <div class="row q-gutter-sm">
-        <q-btn outline label="This Month" icon="event" />
-        <q-btn outline label="Regions" icon="filter_list" />
+        <q-btn outline :label="selectedMonth ? selectedMonth : 'THIS MONTH'" icon="event" />
+
+        <q-dialog v-model="showMonthDialog">
+          <q-card>
+            <q-card-section>
+              <div class="q-pa-sm">
+                <input type="month" v-model="monthModel" />
+              </div>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Clear" @click="clearMonthAndClose" />
+              <q-btn flat label="OK" @click="applyMonth" />
+            </q-card-actions>
+          </q-card>
+        </q-dialog>
+
+        <q-btn outline icon="filter_list" :label="selectedRegion || 'REGION'" />
+        <q-menu v-model="showRegionsMenu">
+          <q-list style="min-width: 200px">
+            <q-item clickable v-ripple>
+              <q-item-section>All regions</q-item-section>
+            </q-item>
+            <q-separator />
+            <q-item clickable v-ripple @click="selectRegion('North America')">
+              <q-item-section>North America</q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+
         <q-btn outline label="Export to Excel" icon="download" />
         <q-btn outline label="Export to PDF" icon="picture_as_pdf" />
       </div>
@@ -60,7 +58,7 @@ export default {
 
     <!-- Table -->
     <q-table
-      :rows="rows"
+      :rows="filteredRows || rows"
       :columns="columns"
       row-key="customerName"
       flat
@@ -111,126 +109,36 @@ export default {
       <template v-slot:body-cell-region="props">
         <q-td :props="props">
           <div class="row items-center">
-            <span class="dot"></span>
-            <span class="q-ml-xs">{{ props.row.region || 'Unknown' }}</span>
-          </div>
-        </q-td>
-      </template>
+            <div class="row q-gutter-sm">
+              <q-btn outline label="This Month" icon="event" />
 
-      <!-- STATUS -->
-      <template v-slot:body-cell-status="props">
-        <q-td :props="props" class="">
-          <span :class="['status-badge', (props.row.status || 'Delivered').toLowerCase()]">
-            {{ props.row.status || 'Unknown' }}
-          </span>
-        </q-td>
-      </template>
+              <q-btn
+                outline
+                icon="filter_list"
+                :label="selectedRegion || 'REGION'"
+                @click="showRegionsMenu = !showRegionsMenu"
+              />
 
-      <!-- TOTAL -->
-      <template v-slot:body-cell-total="props">
-        <q-td :props="props" class="text-right text-weight-medium">
-          ${{ (props.row.totalAmount || 0).toLocaleString() }}
-        </q-td>
-      </template>
+              <q-menu v-model="showRegionsMenu">
+                <q-list style="min-width: 200px">
+                  <!-- ALL -->
+                  <q-item clickable v-ripple @click="clearRegion">
+                    <q-item-section>All regions</q-item-section>
+                  </q-item>
 
-      <!-- ACTION -->
-      <template v-slot:body-cell-action="props">
-        <q-td :props="props" class="text-right">
-          <q-icon name="chevron_right" />
-        </q-td>
-      </template>
-    </q-table>
+                  <q-separator />
+
+                  <!-- REGIONS -->
+                  <q-item v-for="r in regions" :key="r" clickable v-ripple @click="setRegion(r)">
+                    <q-item-section>{{ r }}</q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
+
+              <q-btn outline label="Export to Excel" icon="download" />
+              <q-btn outline label="Export to PDF" icon="picture_as_pdf" />
+            </div>
+            <template v-slot:body-cell-products="props"> </template></div></q-td></template
+    ></q-table>
   </div>
 </template>
-
-<style scoped>
-.orders-card {
-  background: #fff;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-}
-
-/* Tabs */
-.tab-btn {
-  background: #f3f4f6;
-  font-size: 12px;
-}
-.tab-btn.active {
-  background: #e5e7eb;
-  font-weight: 600;
-}
-
-.custom-table tbody tr {
-  border-top: 1px solid #f0f0f0;
-}
-
-.custom-table tbody tr:hover {
-  background: #fafafa;
-}
-
-/* Avatar */
-.avatar {
-  width: 32px;
-  height: 32px;
-  background: #e5e7eb;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-/* Region dot */
-.dot {
-  width: 8px;
-  height: 8px;
-  background: #3b82f6;
-  border-radius: 50%;
-}
-
-/* Status badges */
-.status-badge {
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-weight: 600;
-}
-
-.status-badge.delivered {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.status-badge.in\ transit {
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.status-badge.processing {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.status-badge.on\ hold {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.custom-table tbody tr:nth-child(odd) td {
-  background-color: #edf1f2 !important;
-}
-
-.custom-table tbody tr:nth-child(even) td {
-  background-color: #ffffff !important;
-}
-
-.custom-table tbody tr:hover td {
-  background-color: #eaf2ff !important;
-  transition: 0.2s;
-}
-
-.custom-table td {
-  transition: background-color 0.15s ease;
-}
-</style>
