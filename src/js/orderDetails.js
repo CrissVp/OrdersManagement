@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { api } from 'src/boot/axios'
 
 export default function useOrderDetails() {
@@ -13,6 +13,67 @@ export default function useOrderDetails() {
   ])
 
   const rows = ref([])
+  const allRows = ref([])
+
+  const pagination = ref({
+    page: 1,
+    rowsPerPage: 5,
+  })
+
+  const isMonthFilterActive = ref(false)
+  const selectedRegions = ref([])
+  const regionOptions = ref([])
+  const isRegionFilterActive = ref(false)
+
+  function isCurrentMonth(dateString) {
+    const date = new Date(dateString)
+    const now = new Date()
+
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+  }
+
+  function applyFilters() {
+    const source = allRows.value
+
+    const filtered = source.filter((row) => {
+      if (isMonthFilterActive.value && !isCurrentMonth(row.orderDate)) {
+        return false
+      }
+
+      if (selectedRegions.value.length > 0 && !selectedRegions.value.includes(row.region)) {
+        return false
+      }
+
+      return true
+    })
+
+    rows.value = filtered
+    pagination.value.page = 1
+  }
+
+  function toggleCurrentMonthFilter() {
+    isMonthFilterActive.value = !isMonthFilterActive.value
+    applyFilters()
+  }
+
+  watch(
+    selectedRegions,
+    () => {
+      applyFilters()
+    },
+    { deep: true },
+  )
+
+  // ID GENERATOR
+  function generateRowId(index, row) {
+    return (
+      row.orderID ??
+      row.orderId ??
+      row._id ??
+      row.id ??
+      `${row.customerName ?? 'order'}-${row.orderDate ?? ''}-${index}`
+    )
+  }
 
   async function fetchRows() {
     try {
@@ -22,48 +83,43 @@ export default function useOrderDetails() {
       ])
 
       const productsList = productsRes.data || []
+
       const productMap = new Map(
-        (productsList || []).map((p) => [
-          p.productID ?? p.id ?? p.productId,
-          p.productName ?? p.name,
-        ]),
+        productsList.map((p) => [p.productID ?? p.id ?? p.productId, p.productName ?? p.name]),
       )
 
-      rows.value = (ordersRes.data || []).map((r) => {
-        const row = { ...r }
-
+      const formattedRows = (ordersRes.data || []).map((r, index) => {
         const rawProducts = Array.isArray(r.products) ? r.products : []
 
-        // compute total if not provided
-        let total = row.totalAmount || 0
-        if (!row.totalAmount) {
-          if (rawProducts.length && typeof rawProducts[0] === 'object') {
-            total = rawProducts.reduce(
-              (s, it) => s + (it.qty || it.quantity || 0) * (it.price || it.unitPrice || 0),
-              0,
-            )
-          } else {
-            total = 0
-          }
-        }
-
-        // build display products array (strings)
         const displayProducts = rawProducts.map((p) => {
-          if (p == null) return ''
           if (typeof p === 'string' || typeof p === 'number') {
             return productMap.get(p) || String(p)
           }
-          // object
-          return p.productName || p.name || productMap.get(p.productID || p.productId) || ''
+          return p.productName || p.name || ''
         })
 
-        row.products = displayProducts
-        row.totalAmount = total
-        row.status = row.status || 'Unknown'
-        row.region = row.region || 'Unknown'
+        const generatedId = generateRowId(index, r)
 
-        return row
+        return {
+          ...r,
+
+          // Stable unique key
+          _id: generatedId,
+
+          // preserve backend-provided order id explicitly for links
+          orderID: r.orderID ?? r.orderId ?? r._id ?? r.id ?? generatedId,
+
+          products: displayProducts,
+          totalAmount: r.totalAmount || 0,
+          status: r.status || 'Unknown',
+          region: r.region || 'Unknown',
+        }
       })
+
+      allRows.value = formattedRows
+      rows.value = formattedRows
+
+      regionOptions.value = [...new Set(formattedRows.map((r) => r.region).filter(Boolean))]
     } catch (err) {
       console.error('Failed to load order details', err)
     }
@@ -79,18 +135,20 @@ export default function useOrderDetails() {
       .toUpperCase()
   }
 
-  function onPaginationChange(props) {
-    return props.pagination
-  }
-
-  onMounted(() => {
-    fetchRows()
-  })
+  onMounted(fetchRows)
 
   return {
     columns,
     rows,
     getInitials,
-    onPaginationChange,
+
+    pagination,
+
+    isMonthFilterActive,
+    toggleCurrentMonthFilter,
+
+    selectedRegions,
+    regionOptions,
+    isRegionFilterActive,
   }
 }

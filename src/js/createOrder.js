@@ -2,7 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api } from 'boot/axios'
 import { useRouter } from 'vue-router'
 
-export default function useCreateOrder() {
+export default function useCreateOrder(initialId = null) {
   const customers = ref([])
   const managers = ref([])
   const products = ref([])
@@ -12,6 +12,7 @@ export default function useCreateOrder() {
 
   const addressStatus = ref(null)
   let lastValidated = ''
+  const orderId = ref(initialId || null)
 
   const form = ref({
     customer: null,
@@ -93,12 +94,120 @@ export default function useCreateOrder() {
           })),
       }
 
-      await api.post('/orders/create', payload)
+      let res
+      if (orderId.value) {
+        // update existing order
+        res = await api.put(`/orders/${orderId.value}`, payload)
+      } else {
+        res = await api.post('/orders/create', payload)
+      }
+
+      console.log({ res })
 
       router.push('/')
     } catch (err) {
       console.error('Error saving order', err)
     }
+  }
+
+  async function loadOrder(id) {
+    if (!id) return
+    try {
+      const res = await api.get(`/orders/${id}`)
+      const data = res.data
+
+      // mark current order id
+      orderId.value = id
+
+      // populate form fields if present
+      form.value.customer = data.customerID || form.value.customer
+      form.value.manager = data.employeeID || form.value.manager
+      form.value.shipper = data.shipVia || form.value.shipper
+      form.value.date = data.orderDate ? data.orderDate.substring(0, 10) : form.value.date
+
+      // populate address (concise single-line) and logistics
+      form.value.address =
+        (data.shipAddress || '') +
+        (data.shipCity ? ', ' + data.shipCity : '') +
+        (data.shipRegion ? ', ' + data.shipRegion : '') +
+        (data.shipPostalCode ? ' ' + data.shipPostalCode : '')
+
+      logistics.value = {
+        street: data.shipAddress || '',
+        city: data.shipCity || '',
+        state: data.shipRegion || '',
+        postal: data.shipPostalCode || '',
+        country: data.shipCountry || '',
+        gps: data.latitude && data.longitude ? `${data.latitude}, ${data.longitude}` : '',
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
+      }
+
+      // populate items: support either detailed `orderDetails` or simple `products` list
+      if (Array.isArray(data.orderDetails) && data.orderDetails.length) {
+        items.value = data.orderDetails.map((d) => ({
+          productId: d.productID,
+          desc: d.productName || '',
+          qty: d.quantity || d.qty || 1,
+          price: d.unitPrice || d.price || 0,
+        }))
+
+        // sync with products options (set desc/price if available)
+        items.value.forEach((it, idx) => {
+          try {
+            if (it.productId) updateProduct(idx, it.productId)
+          } catch (e) {
+            console.warn('Failed to sync product details for item', it, e)
+          }
+        })
+      } else if (Array.isArray(data.products) && data.products.length) {
+        // `products` may be an array of product names; try to map to known products
+        items.value = data.products.map((pName) => {
+          const name = String(pName || '').trim()
+          const found = products.value.find((pr) => pr.label === name)
+          return {
+            productId: found ? found.value : null,
+            desc: name,
+            qty: 1,
+            price: found ? found.price : 0,
+          }
+        })
+      }
+
+      // populate shipper details if available
+      if (shippersRaw.value && shippersRaw.value.length) {
+        const s = shippersRaw.value.find((x) => x.shipperID === (data.shipVia || data.shipperID))
+        if (s) {
+          shipperDetails.value = { id: s.shipperID, name: s.companyName, phone: s.phone }
+        }
+      }
+
+      addressStatus.value = true
+    } catch (err) {
+      console.error('Failed to load order', err)
+    }
+  }
+
+  function clearOrder() {
+    orderId.value = null
+    // reset form and items
+    form.value = {
+      customer: null,
+      address: '',
+      date: new Date().toISOString().substring(0, 10),
+      manager: null,
+      shipper: null,
+    }
+    items.value = [{ productId: null, desc: '', qty: 1, price: 0 }]
+    logistics.value = {
+      street: '',
+      city: '',
+      state: '',
+      postal: '',
+      country: '',
+      gps: '',
+    }
+    addressStatus.value = null
   }
 
   onMounted(async () => {
@@ -121,6 +230,10 @@ export default function useCreateOrder() {
     }))
     shippers.value = s.data.map((x) => ({ label: x.companyName, value: x.shipperID }))
     shippersRaw.value = s.data
+    // if an initial id was provided, attempt to load it
+    if (orderId.value) {
+      await loadOrder(orderId.value)
+    }
   })
 
   const items = ref([{ productId: null, desc: '', qty: 1, price: 0 }])
@@ -177,6 +290,9 @@ export default function useCreateOrder() {
     onShipperChange,
     validateAddress,
     saveOrder,
+    loadOrder,
+    orderId,
+    clearOrder,
     items,
     addLine,
     updateProduct,

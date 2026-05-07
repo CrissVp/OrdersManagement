@@ -1,8 +1,6 @@
 .page-wrap {
   background: #f5f7fa;
   padding: 18px 24px;
-  max-width: 1200px;
-  margin: 0 auto;
   font-family: Inter, system-ui, sans-serif;
 }
 
@@ -142,7 +140,7 @@
   font-size: 10.5px;
   color: #9aa4b2;
   font-weight: 600;
-  text-align: left;
+  text-align: center;
   padding-bottom: 8px;
 }
 
@@ -150,6 +148,22 @@
   border-top: 1px solid #f1f3f5;
   padding: 10px 0;
   vertical-align: middle;
+}
+
+/* center all table data cells by default */
+.custom-table td,
+.custom-table thead th {
+  text-align: center;
+}
+
+.custom-table tbody tr.line-item-row,
+.custom-table tbody tr.line-item-row td {
+  background-color: #ffffff !important;
+}
+
+/* header row styling */
+.custom-table thead tr.header-row {
+  background-color: transparent;
 }
 
 .item-sub {

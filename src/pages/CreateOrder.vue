@@ -4,14 +4,24 @@
     <div class="header">
       <div class="block-container row items-center no-wrap">
         <div class="header-left">
-          <div class="order-icon"></div>
-          <div class="order-title">NEW ORDER</div>
+          <div class="order-icon">
+            <q-icon name="shopping_cart" size="1.8em" color="white" />
+          </div>
+          <div class="order-title">{{ orderId ? `ORDER # ${orderId}` : 'NEW ORDER' }}</div>
         </div>
 
         <div class="header-actions row items-center no-wrap">
           <span>|</span>
+          <q-btn
+            v-if="orderId"
+            flat
+            size="sm"
+            class="btn-outline"
+            label="NEW"
+            @click="clearOrder"
+          />
           <q-btn flat size="sm" class="btn-outline" label="Save" @click="saveOrder" />
-          <q-btn flat size="sm" label="Cancel" class="btn-danger btn-outline" />
+          <q-btn flat size="sm" label="Cancel" class="btn-danger btn-outline" to="/" />
         </div>
       </div>
 
@@ -98,7 +108,7 @@
     <div class="row justify-between items-center q-mt-lg q-mb-md">
       <div class="row items-center">
         <span class="item-line-title">Line Items</span>
-        <span class="item-count">{{ items.length }} ITEMS</span>
+        <span class="item-count font-bold">{{ items.length }} ITEMS</span>
       </div>
 
       <div class="row q-gutter-sm">
@@ -110,25 +120,25 @@
     <div class="block-container">
       <table class="custom-table">
         <thead>
-          <tr>
-            <th style="width: 40px">
+          <tr class="header-row">
+            <th class="center th-checkbox" style="width: 40px">
               <input type="checkbox" v-model="selectAll" @change="toggleAll" />
             </th>
-            <th>PRODUCT</th>
-            <th>DESCRIPTION</th>
-            <th>QTY</th>
-            <th class="right">UNIT PRICE</th>
-            <th class="right">TOTAL</th>
+            <th style="width: 400px; text-align: left; padding-left: 20px">PRODUCT</th>
+            <th class="center th-desc">DESCRIPTION</th>
+            <th class="center th-qty">QUANTITY</th>
+            <th class="center th-unit">UNIT PRICE</th>
+            <th class="center th-ext">EXT. TOTAL</th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-for="(item, index) in items" :key="index">
-            <td class="center">
+          <tr v-for="(item, index) in items" :key="index" class="line-item-row">
+            <td class="center td-checkbox">
               <input type="checkbox" v-model="selected" :value="index" />
             </td>
 
-            <td>
+            <td class="center td-product">
               <q-select
                 v-model="item.productId"
                 :options="products"
@@ -140,16 +150,16 @@
               />
             </td>
 
-            <td>
+            <td class="center td-desc">
               <div class="item-sub">{{ item.desc }}</div>
             </td>
 
-            <td class="center">
+            <td class="center td-qty">
               <input class="qty-input" type="number" v-model.number="item.qty" />
             </td>
 
-            <td class="right">${{ item.price.toFixed(2) }}</td>
-            <td class="right total-cell">${{ (item.qty * item.price).toFixed(2) }}</td>
+            <td class="center td-unit">${{ item.price.toFixed(2) }}</td>
+            <td class="center td-total total-cell">${{ (item.qty * item.price).toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -194,9 +204,14 @@
 </template>
 
 <script setup>
+import { useRoute } from 'vue-router'
+import { watch } from 'vue'
 import useCreateOrder from '../js/createOrder.js'
 import '../css/createOrder.css'
 import MapDisplay from '../components/MapDisplay.vue'
+
+const route = useRoute()
+const initialId = route.query.id || null
 
 const {
   customers,
@@ -209,6 +224,9 @@ const {
   onShipperChange,
   validateAddress,
   saveOrder,
+  loadOrder,
+  orderId,
+  clearOrder,
   items,
   addLine,
   updateProduct,
@@ -218,5 +236,16 @@ const {
   deleteSelected,
   total,
   logistics,
-} = useCreateOrder()
+} = useCreateOrder(initialId)
+
+// react to query id changes when navigating from order list
+watch(
+  () => route.query.id,
+  (val) => {
+    if (val) {
+      orderId.value = val
+      loadOrder(val)
+    }
+  },
+)
 </script>
