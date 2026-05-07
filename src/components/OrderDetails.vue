@@ -1,12 +1,8 @@
 <script setup>
-import { ref } from 'vue'
 import useOrderDetails from '../js/orderDetails.js'
 import '../css/orderDetails.css'
 
-const { columns, filteredRows, regions, selectedRegion, setRegion, clearRegion, getInitials } =
-  useOrderDetails()
-
-const showRegionsMenu = ref(false)
+const { columns, rows, getInitials } = useOrderDetails()
 </script>
 
 <template>
@@ -22,35 +18,8 @@ const showRegionsMenu = ref(false)
       </div>
 
       <div class="row q-gutter-sm">
-        <q-btn outline :label="selectedMonth ? selectedMonth : 'THIS MONTH'" icon="event" />
-
-        <q-dialog v-model="showMonthDialog">
-          <q-card>
-            <q-card-section>
-              <div class="q-pa-sm">
-                <input type="month" v-model="monthModel" />
-              </div>
-            </q-card-section>
-            <q-card-actions align="right">
-              <q-btn flat label="Clear" @click="clearMonthAndClose" />
-              <q-btn flat label="OK" @click="applyMonth" />
-            </q-card-actions>
-          </q-card>
-        </q-dialog>
-
-        <q-btn outline icon="filter_list" :label="selectedRegion || 'REGION'" />
-        <q-menu v-model="showRegionsMenu">
-          <q-list style="min-width: 200px">
-            <q-item clickable v-ripple>
-              <q-item-section>All regions</q-item-section>
-            </q-item>
-            <q-separator />
-            <q-item clickable v-ripple @click="selectRegion('North America')">
-              <q-item-section>North America</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
-
+        <q-btn outline label="This Month" icon="event" />
+        <q-btn outline label="Regions" icon="filter_list" />
         <q-btn outline label="Export to Excel" icon="download" />
         <q-btn outline label="Export to PDF" icon="picture_as_pdf" />
       </div>
@@ -58,7 +27,7 @@ const showRegionsMenu = ref(false)
 
     <!-- Table -->
     <q-table
-      :rows="filteredRows || rows"
+      :rows="rows"
       :columns="columns"
       row-key="customerName"
       flat
@@ -109,36 +78,34 @@ const showRegionsMenu = ref(false)
       <template v-slot:body-cell-region="props">
         <q-td :props="props">
           <div class="row items-center">
-            <div class="row q-gutter-sm">
-              <q-btn outline label="This Month" icon="event" />
+            <span class="dot"></span>
+            <span class="q-ml-xs">{{ props.row.region || 'Unknown' }}</span>
+          </div>
+        </q-td>
+      </template>
 
-              <q-btn
-                outline
-                icon="filter_list"
-                :label="selectedRegion || 'REGION'"
-                @click="showRegionsMenu = !showRegionsMenu"
-              />
+      <!-- STATUS -->
+      <template v-slot:body-cell-status="props">
+        <q-td :props="props" class="">
+          <span :class="['status-badge', (props.row.status || 'Unknown').toLowerCase()]">
+            {{ props.row.status || 'Unknown' }}
+          </span>
+        </q-td>
+      </template>
 
-              <q-menu v-model="showRegionsMenu">
-                <q-list style="min-width: 200px">
-                  <!-- ALL -->
-                  <q-item clickable v-ripple @click="clearRegion">
-                    <q-item-section>All regions</q-item-section>
-                  </q-item>
+      <!-- TOTAL -->
+      <template v-slot:body-cell-total="props">
+        <q-td :props="props" class="text-right text-weight-medium">
+          ${{ (props.row.totalAmount || 0).toLocaleString() }}
+        </q-td>
+      </template>
 
-                  <q-separator />
-
-                  <!-- REGIONS -->
-                  <q-item v-for="r in regions" :key="r" clickable v-ripple @click="setRegion(r)">
-                    <q-item-section>{{ r }}</q-item-section>
-                  </q-item>
-                </q-list>
-              </q-menu>
-
-              <q-btn outline label="Export to Excel" icon="download" />
-              <q-btn outline label="Export to PDF" icon="picture_as_pdf" />
-            </div>
-            <template v-slot:body-cell-products="props"> </template></div></q-td></template
-    ></q-table>
+      <!-- ACTION -->
+      <template v-slot:body-cell-action="props">
+        <q-td :props="props" class="text-right">
+          <q-icon name="chevron_right" />
+        </q-td>
+      </template>
+    </q-table>
   </div>
 </template>
