@@ -1,3 +1,5 @@
+<!-- src/pages/OrderDetails.vue -->
+
 <script setup>
 import useOrderDetails from '../js/orderDetails.js'
 import '../css/orderDetails.css'
@@ -9,12 +11,18 @@ const {
 
   pagination,
 
-  toggleCurrentMonthFilter,
-  isMonthFilterActive,
-
+  // REGION
   selectedRegions,
   regionOptions,
-  isRegionFilterActive,
+
+  // DATE
+  selectedYear,
+  selectedMonth,
+  selectedWeek,
+
+  yearOptions,
+  monthOptions,
+  weekOptions,
 } = useOrderDetails()
 </script>
 
@@ -22,50 +30,121 @@ const {
   <div class="orders-card q-pa-md">
     <!-- HEADER -->
     <div class="row items-center justify-between q-mb-md">
-      <div class="text-h6">Order Details</div>
+      <div class="row q-gutter-lg">
+        <!-- TITLE -->
+        <div class="text-h5 text-bold">Order Details</div>
 
-      <!-- TABS -->
-      <div class="row q-gutter-sm">
-        <q-btn flat label="All Orders" class="tab-btn active" />
-        <q-btn flat label="Delayed" class="tab-btn" />
-        <q-btn flat label="Priority" class="tab-btn" />
+        <!-- TABS -->
+        <div class="row q-gutter-xs">
+          <q-btn flat label="All Orders" size="sm" class="tab-btn active" />
+          <q-btn flat label="Delayed" size="sm" class="tab-btn" />
+          <q-btn flat label="Priority" size="sm" class="tab-btn" />
+        </div>
       </div>
 
-      <!-- FILTERS -->
-      <div class="row q-gutter-sm">
-        <!-- THIS MONTH FILTER -->
-        <q-btn
-          outline
-          icon="event"
-          label="This Month"
-          @click="toggleCurrentMonthFilter"
-          :class="{ 'active-filter-btn': isMonthFilterActive }"
-        />
+      <div class="row q-gutter-md items-center">
+        <!-- FILTERS -->
+        <div class="row table-action">
+          <!-- DATE FILTER -->
+          <q-btn-dropdown
+            class="table-action-btn btn-no-round"
+            rounded="false"
+            label="Date Filter"
+            icon="event"
+            flat
+          >
+            <div class="q-pa-md row column q-gutter-md" style="min-width: 260px">
+              <!-- YEAR -->
+              <q-select
+                v-model="selectedYear"
+                :options="yearOptions"
+                label="Year"
+                outlined
+                dense
+                clearable
+              />
 
-        <!-- REGION FILTER (FULLY REACTIVE) -->
-        <q-btn-dropdown
-          outline
-          icon="filter_list"
-          label="Regions"
-          :class="{ 'active-filter-btn': isRegionFilterActive }"
-        >
-          <div class="q-pa-md" style="min-width: 250px">
-            <q-option-group
-              v-model="selectedRegions"
-              :options="
-                regionOptions.map((r) => ({
-                  label: r,
-                  value: r,
-                }))
-              "
-              type="checkbox"
-            />
-          </div>
-        </q-btn-dropdown>
+              <!-- MONTH -->
+              <q-select
+                v-model="selectedMonth"
+                :options="monthOptions"
+                option-label="label"
+                option-value="value"
+                emit-value
+                map-options
+                label="Month"
+                outlined
+                dense
+                clearable
+                :disable="!selectedYear"
+              />
 
-        <!-- EXPORT BUTTONS -->
-        <q-btn outline label="Export to Excel" icon="download" />
-        <q-btn outline label="Export to PDF" icon="picture_as_pdf" />
+              <!-- WEEK -->
+              <q-select
+                v-model="selectedWeek"
+                :options="weekOptions"
+                option-label="label"
+                option-value="value"
+                emit-value
+                map-options
+                label="Week"
+                outlined
+                dense
+                clearable
+                :disable="selectedMonth === null"
+              />
+
+              <!-- CLEAR -->
+              <q-btn
+                flat
+                color="primary"
+                label="Clear Filters"
+                @click="((selectedYear = null), (selectedMonth = null), (selectedWeek = null))"
+              />
+            </div>
+          </q-btn-dropdown>
+
+          <!-- REGION FILTER -->
+          <q-btn-dropdown
+            class="table-action-btn btn-no-round"
+            icon="filter_list"
+            rounded="false"
+            label="Regions"
+            flat
+          >
+            <div class="q-pa-md" style="min-width: 250px">
+              <q-option-group
+                v-model="selectedRegions"
+                :options="
+                  regionOptions.map((r) => ({
+                    label: r,
+                    value: r,
+                  }))
+                "
+                type="checkbox"
+              />
+            </div>
+          </q-btn-dropdown>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="row">
+          <!-- EXPORT -->
+          <q-btn
+            class="table-action table-action-btn q-mr-sm"
+            flat
+            label="Export to Excel"
+            icon="download"
+          />
+
+          <q-btn
+            class="table-action table-action-btn"
+            flat
+            label="Export to PDF"
+            icon="picture_as_pdf"
+          />
+        </div>
       </div>
     </div>
 
@@ -79,11 +158,13 @@ const {
       class="custom-table q-table--striped"
       v-model:pagination="pagination"
     >
+      <!-- HEADER -->
       <template v-slot:header-cell="props">
-        <q-th :props="props" class="th-left">{{
-          (props.header && props.header.label) || (props.col && props.col.label) || ''
-        }}</q-th>
+        <q-th :props="props" class="th-left">
+          {{ (props.header && props.header.label) || (props.col && props.col.label) || '' }}
+        </q-th>
       </template>
+
       <!-- CUSTOMER -->
       <template v-slot:body-cell-customer="props">
         <q-td :props="props" class="td-left">
@@ -91,6 +172,7 @@ const {
             <div class="avatar">
               {{ getInitials(props.row.customerName) }}
             </div>
+
             <div class="q-ml-sm text-weight-medium">
               {{ props.row.customerName }}
             </div>
@@ -116,8 +198,14 @@ const {
       <template v-slot:body-cell-products="props">
         <q-td :props="props" class="td-left">
           <div>
-            {{ props.row.products?.length || 0 }} Items
-            <span class="text-grey-6"> ({{ props.row.products?.slice(-2).join(', ') }}) </span>
+            {{ props.row.products?.length || 0 }}
+            Items
+
+            <span class="text-grey-6">
+              (
+              {{ props.row.products?.slice(-2).join(', ') }}
+              )
+            </span>
           </div>
         </q-td>
       </template>
@@ -127,7 +215,10 @@ const {
         <q-td :props="props" class="td-left">
           <div class="row items-center">
             <span class="dot"></span>
-            <span class="q-ml-xs">{{ props.row.region || 'Unknown' }}</span>
+
+            <span class="q-ml-xs">
+              {{ props.row.region || 'Unknown' }}
+            </span>
           </div>
         </q-td>
       </template>
