@@ -2,7 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api } from 'boot/axios'
 import { useRouter } from 'vue-router'
 
-export default function useCreateOrder(initialId = null) {
+export default function useCreateOrder(initialId = null, initialProductIDsParam = null) {
   const customers = ref([])
   const managers = ref([])
   const products = ref([])
@@ -13,6 +13,15 @@ export default function useCreateOrder(initialId = null) {
   const addressStatus = ref(null)
   let lastValidated = ''
   const orderId = ref(initialId || null)
+  const productIDs = ref(
+    initialProductIDsParam
+      ? Array.isArray(initialProductIDsParam)
+        ? initialProductIDsParam
+        : [initialProductIDsParam]
+      : null,
+  )
+
+  console.log('Initial product IDs from query:', productIDs.value)
 
   const form = ref({
     customer: null,
@@ -113,7 +122,7 @@ export default function useCreateOrder(initialId = null) {
   async function loadOrder(id) {
     if (!id) return
     try {
-      const res = await api.get(`/orders/${id}`)
+      const res = await api.get(`/order-detail-views/${id}`)
       const data = res.data
 
       // mark current order id
@@ -123,14 +132,12 @@ export default function useCreateOrder(initialId = null) {
       form.value.customer = data.customerID || form.value.customer
       form.value.manager = data.employeeID || form.value.manager
       form.value.shipper = data.shipVia || form.value.shipper
-      form.value.date = data.orderDate ? data.orderDate.substring(0, 10) : form.value.date
-
-      // populate address (concise single-line) and logistics
       form.value.address =
         (data.shipAddress || '') +
         (data.shipCity ? ', ' + data.shipCity : '') +
         (data.shipRegion ? ', ' + data.shipRegion : '') +
         (data.shipPostalCode ? ' ' + data.shipPostalCode : '')
+      form.value.date = data.orderDate ? data.orderDate.substring(0, 10) : form.value.date
 
       logistics.value = {
         street: data.shipAddress || '',
@@ -143,33 +150,21 @@ export default function useCreateOrder(initialId = null) {
         longitude: data.longitude || null,
       }
 
-      // populate items: support either detailed `orderDetails` or simple `products` list
-      if (Array.isArray(data.orderDetails) && data.orderDetails.length) {
-        items.value = data.orderDetails.map((d) => ({
-          productId: d.productID,
-          desc: d.productName || '',
-          qty: d.quantity || d.qty || 1,
-          price: d.unitPrice || d.price || 0,
+      // populate items from productDetails
+      if (Array.isArray(data.productDetails) && data.productDetails.length) {
+        items.value = data.productDetails.map((detail) => ({
+          productId: detail.productID,
+          desc: '',
+          qty: detail.quantity || 1,
+          price: detail.unitPrice || 0,
         }))
 
-        // sync with products options (set desc/price if available)
+        // sync product name and latest price
         items.value.forEach((it, idx) => {
           try {
             if (it.productId) updateProduct(idx, it.productId)
           } catch (e) {
             console.warn('Failed to sync product details for item', it, e)
-          }
-        })
-      } else if (Array.isArray(data.products) && data.products.length) {
-        // `products` may be an array of product names; try to map to known products
-        items.value = data.products.map((pName) => {
-          const name = String(pName || '').trim()
-          const found = products.value.find((pr) => pr.label === name)
-          return {
-            productId: found ? found.value : null,
-            desc: name,
-            qty: 1,
-            price: found ? found.price : 0,
           }
         })
       }
@@ -233,6 +228,20 @@ export default function useCreateOrder(initialId = null) {
     // if an initial id was provided, attempt to load it
     if (orderId.value) {
       await loadOrder(orderId.value)
+      return
+    }
+
+    // If product IDs were passed in the query, prefill line items
+    if (productIDs.value && Array.isArray(productIDs.value)) {
+      items.value = productIDs.value.map((id) => {
+        const found = products.value.find((pr) => pr.value == id)
+        return {
+          productId: found ? found.value : id,
+          desc: found ? found.label : '',
+          qty: 1,
+          price: found ? found.price : 0,
+        }
+      })
     }
   })
 
@@ -244,9 +253,14 @@ export default function useCreateOrder(initialId = null) {
 
   function updateProduct(index, productId) {
     const p = products.value.find((p) => p.value === productId)
+
     if (p) {
       items.value[index].desc = p.label
-      items.value[index].price = p.price
+
+      // only set product price if item has no price yet
+      if (!items.value[index].price) {
+        items.value[index].price = p.price
+      }
     }
   }
 

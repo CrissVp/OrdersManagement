@@ -156,7 +156,10 @@ const {
             dense
             round
             icon="chevron_right"
-            :to="{ path: '/create-order', query: { id: props.row.orderID } }"
+            :to="{
+              path: '/create-order',
+              query: { id: props.row.orderID },
+            }"
           />
         </q-td>
       </template>

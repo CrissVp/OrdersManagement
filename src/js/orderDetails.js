@@ -3,6 +3,7 @@ import { api } from 'src/boot/axios'
 
 export default function useOrderDetails() {
   const columns = ref([
+    { mame: 'orderID', label: 'ORDER ID', field: 'orderID', align: 'left' },
     { name: 'customer', label: 'CUSTOMER', field: 'customerName', align: 'left' },
     { name: 'orderDate', label: 'ORDER DATE', field: 'orderDate', align: 'left' },
     { name: 'products', label: 'PRODUCTS', field: 'products', align: 'left' },
@@ -84,9 +85,7 @@ export default function useOrderDetails() {
 
       const productsList = productsRes.data || []
 
-      const productMap = new Map(
-        productsList.map((p) => [p.productID ?? p.id ?? p.productId, p.productName ?? p.name]),
-      )
+      const productMap = new Map(productsList.map((p) => [p.productId]))
 
       const formattedRows = (ordersRes.data || []).map((r, index) => {
         const rawProducts = Array.isArray(r.products) ? r.products : []
@@ -95,8 +94,16 @@ export default function useOrderDetails() {
           if (typeof p === 'string' || typeof p === 'number') {
             return productMap.get(p) || String(p)
           }
-          return p.productName || p.name || ''
+          return p.productName || ''
         })
+
+        // extract product IDs (normalize object and primitive entries)
+        const productIDs = rawProducts
+          .map((p) => {
+            if (typeof p === 'string' || typeof p === 'number') return p
+            return p.productId ?? null
+          })
+          .filter((x) => x != null)
 
         const generatedId = generateRowId(index, r)
 
@@ -110,6 +117,7 @@ export default function useOrderDetails() {
           orderID: r.orderID ?? r.orderId ?? r._id ?? r.id ?? generatedId,
 
           products: displayProducts,
+          productIDs,
           totalAmount: r.totalAmount || 0,
           status: r.status || 'Unknown',
           region: r.region || 'Unknown',

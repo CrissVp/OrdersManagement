@@ -212,6 +212,13 @@ import MapDisplay from '../components/MapDisplay.vue'
 
 const route = useRoute()
 const initialId = route.query.id || null
+// normalize productIDs from query (may be string or array)
+const rawProductIDs = route.query.productIDs || null
+const initialProductIDs = rawProductIDs
+  ? Array.isArray(rawProductIDs)
+    ? rawProductIDs
+    : [rawProductIDs]
+  : null
 
 const {
   customers,
@@ -236,7 +243,7 @@ const {
   deleteSelected,
   total,
   logistics,
-} = useCreateOrder(initialId)
+} = useCreateOrder(initialId, initialProductIDs)
 
 // react to query id changes when navigating from order list
 watch(
